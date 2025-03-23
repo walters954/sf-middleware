@@ -1,0 +1,11 @@
+{
+  "name": "Salesforce Middleware",
+  "description": "A middleware for Salesforce",
+  "repository": "https://github.com/walters954/sf-middleware",
+  "logo": "https://cdn.rawgit.com/heroku/node-js-getting-started/main/public/node.svg",
+  "keywords": ["node", "express", "heroku"],
+  "image": "heroku/nodejs",
+  "addons": [
+    "heroku-integration"
+  ]
+}
