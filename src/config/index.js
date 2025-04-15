@@ -5,11 +5,9 @@ module.exports = {
   env: process.env.NODE_ENV || 'development',
   logLevel: process.env.LOG_LEVEL || 'info',
   testing: process.env.TESTING === 'true' || false,
+  
   salesforce: {
-    username: process.env.SF_USERNAME,
-    password: process.env.SF_PASSWORD,
-    securityToken: process.env.SF_SECURITY_TOKEN,
-    loginUrl: process.env.SF_LOGIN_URL || 'https://login.salesforce.com'
+    org: process.env.SF_ORG
   },
   
   webhooks: {

@@ -1,59 +1,125 @@
-const jsforce = require('jsforce');
+const salesforcesdk = require('@heroku/salesforce-sdk-nodejs')
 const config = require('../config');
 const logger = require('../utils/logger');
 
 class SalesforceConnector {
   constructor() {
-    this.conn = null;
-    this.isConnected = false;
+    this.sfsdk = null;
+    this.org = null;
+    this.dataApi = null;
   }
 
-  async connect() {
-    if (this.isConnected) return;
+  async initialize() {
+    if (this.dataApi) return;
 
     try {
-      this.conn = new jsforce.Connection({
-        loginUrl: config.salesforce.loginUrl
-      });
-
-      await this.conn.login(
-        config.salesforce.username,
-        config.salesforce.password + config.salesforce.securityToken
-      );
-
-      this.isConnected = true;
-      logger.info('Connected to Salesforce');
+      this.sfsdk = new salesforcesdk.init();
+      this.org = await this.sfsdk.addons.herokuIntegration.getConnection(config.salesforce.org);
+      this.dataApi = this.org.dataApi;
+      logger.info('Initialized Salesforce connection');
     } catch (error) {
-      logger.error(`Failed to connect to Salesforce: ${error.message}`);
+      logger.error(`Failed to initialize Salesforce connection: ${error.message}`);
       throw error;
     }
   }
 
   async createIntegrationRecord(data) {
     try {
-      if (!this.isConnected) {
-        await this.connect();
+      if (!this.dataApi) {
+        await this.initialize();
       }
 
-      const result = await this.conn.sobject('Integration__c').create(data);
-      
-      if (result.success) {
-        logger.info(`Created Integration record: ${result.id}`);
-        return result;
-      } else {
-        throw new Error(`Failed to create record: ${result.errors.join(', ')}`);
-      }
+      const recordToCreate = {
+        type: 'Integration__c',
+        fields: data
+      };
+
+      const result = await this.dataApi.create(recordToCreate);
+      logger.info(`Created Integration record: ${result.id}`);
+      return result;
     } catch (error) {
       logger.error(`Error creating Integration record: ${error.message}`);
       throw error;
     }
   }
 
-  async disconnect() {
-    if (this.conn) {
-      this.conn.logout();
-      this.isConnected = false;
-      logger.info('Disconnected from Salesforce');
+  async query(soql) {
+    try {
+      if (!this.dataApi) {
+        await this.initialize();
+      }
+
+      const results = await this.dataApi.query(soql);
+      return results;
+    } catch (error) {
+      logger.error(`Error executing SOQL query: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async updateRecord(type, id, fields) {
+    try {
+      if (!this.dataApi) {
+        await this.initialize();
+      }
+
+      const recordToUpdate = {
+        type,
+        fields: {
+          Id: id,
+          ...fields
+        }
+      };
+
+      const result = await this.dataApi.update(recordToUpdate);
+      logger.info(`Updated ${type} record: ${result.id}`);
+      return result;
+    } catch (error) {
+      logger.error(`Error updating ${type} record: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async deleteRecord(type, id) {
+    try {
+      if (!this.dataApi) {
+        await this.initialize();
+      }
+
+      const result = await this.dataApi.delete(type, id);
+      logger.info(`Deleted ${type} record: ${id}`);
+      return result;
+    } catch (error) {
+      logger.error(`Error deleting ${type} record: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async createUnitOfWork() {
+    try {
+      if (!this.dataApi) {
+        await this.initialize();
+      }
+
+      return this.dataApi.newUnitOfWork();
+    } catch (error) {
+      logger.error(`Error creating Unit of Work: ${error.message}`);
+      throw error;
+    }
+  }
+
+  async commitUnitOfWork(uow) {
+    try {
+      if (!this.dataApi) {
+        await this.initialize();
+      }
+
+      const results = await this.dataApi.commitUnitOfWork(uow);
+      logger.info('Successfully committed Unit of Work');
+      return results;
+    } catch (error) {
+      logger.error(`Error committing Unit of Work: ${error.message}`);
+      throw error;
     }
   }
 }
