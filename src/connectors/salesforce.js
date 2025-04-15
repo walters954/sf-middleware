@@ -1,10 +1,10 @@
-const salesforcesdk = require('@heroku/salesforce-sdk-nodejs')
+const salesforcesdk = require('@heroku/salesforce-sdk-nodejs');
 const config = require('../config');
 const logger = require('../utils/logger');
 
 class SalesforceConnector {
   constructor() {
-    this.sfsdk = null;
+    this.sdk = salesforcesdk.init();
     this.org = null;
     this.dataApi = null;
   }
@@ -13,10 +13,11 @@ class SalesforceConnector {
     if (this.dataApi) return;
 
     try {
-      this.sfsdk = new salesforcesdk.init();
-      this.org = await this.sfsdk.addons.herokuIntegration.getConnection(config.salesforce.org);
+      // Get the connection using the simpler method
+      this.org = await this.sdk.addons.herokuIntegration.getConnection(config.salesforce.org);
       this.dataApi = this.org.dataApi;
-      logger.info('Initialized Salesforce connection');
+      
+      logger.info(`Initialized Salesforce connection for org: ${config.salesforce.org}`);
     } catch (error) {
       logger.error(`Failed to initialize Salesforce connection: ${error.message}`);
       throw error;
