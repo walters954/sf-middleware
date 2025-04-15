@@ -4,26 +4,34 @@ This document outlines how to use the `@heroku/salesforce-sdk-nodejs` package, f
 
 ## Overview
 
-Unlike libraries like `jsforce` where you explicitly log in using credentials, the `@heroku/salesforce-sdk-nodejs` appears designed to work within an environment where Salesforce authentication context is implicitly provided. This is common in contexts like Salesforce Functions or integrations invoked by Salesforce events.
+Unlike libraries like `jsforce` where you explicitly log in using credentials, the `@heroku/salesforce-sdk-nodejs` provides a simpler approach to connect to a Salesforce org. This SDK is designed for Salesforce Functions and Heroku applications that are connected to a Salesforce org.
 
-The SDK provides access to the Salesforce org's data and metadata through `Context` and `Org` objects, which are expected to be available in the execution environment.
+## Connecting to Salesforce
 
-## Accessing the Salesforce Org Context
-
-The primary way to interact with Salesforce is through the `Context` object, typically passed to your function or handler. From the `Context`, you can access the `Org` object, which contains the `DataApi`.
+The simplest way to connect to a Salesforce org is using the `getConnection` method from the `herokuIntegration` addon:
 
 ```javascript
-// Assuming 'context' is provided by the execution environment
-// For example, in a Salesforce Function:
-// module.exports = async function (event, context, logger) { ... }
+const salesforcesdk = require('@heroku/salesforce-sdk-nodejs');
 
-const org = context.org;
-if (!org) {
-  throw new Error('Salesforce Org context not found.');
-}
+// Initialize the SDK
+const sdk = salesforcesdk.init();
 
+// Connect to the Salesforce org using the org name from environment variables
+const org = await sdk.addons.herokuIntegration.getConnection(process.env.SF_ORG);
+
+// Access the DataApi for CRUD operations
 const dataApi = org.dataApi;
+
+// Example: query records
+const result = await dataApi.query('SELECT Id, Name FROM Account LIMIT 10');
+console.log('Accounts: ', result.records);
 ```
+
+This approach requires minimal setup and handles authentication automatically. You just need to:
+
+1. Set up the `SF_ORG` environment variable with your Salesforce org name
+2. Initialize the SDK
+3. Use the `getConnection` method to establish a connection
 
 ## Creating Records
 
@@ -59,10 +67,9 @@ const newRecordData = {
   External_ID__c: 'XYZ-123'
 };
 
-// Assuming context and logger are available
-// createIntegrationRecord(context.org.dataApi, newRecordData)
-//   .then(result => { /* ... */ })
-//   .catch(error => { /* ... */ });
+createIntegrationRecord(dataApi, newRecordData)
+  .then(result => { /* ... */ })
+  .catch(error => { /* ... */ });
 ```
 
 ### `RecordForCreate` Structure
@@ -104,9 +111,9 @@ async function findAccountsByName(dataApi, accountName) {
 }
 
 // Example Usage:
-// findAccountsByName(context.org.dataApi, 'Acme Corporation')
-//   .then(records => { /* ... */ })
-//   .catch(error => { /* ... */ });
+findAccountsByName(dataApi, 'Acme Corporation')
+  .then(records => { /* ... */ })
+  .catch(error => { /* ... */ });
 ```
 
 ### Query Results Structure
@@ -145,9 +152,9 @@ async function updateAccountIndustry(dataApi, accountId, newIndustry) {
 }
 
 // Example Usage:
-// updateAccountIndustry(context.org.dataApi, '001xxxxxxxxxxxxxxx', 'Technology')
-//   .then(result => { /* ... */ })
-//   .catch(error => { /* ... */ });
+updateAccountIndustry(dataApi, '001xxxxxxxxxxxxxxx', 'Technology')
+  .then(result => { /* ... */ })
+  .catch(error => { /* ... */ });
 ```
 
 ## Deleting Records
@@ -167,10 +174,9 @@ async function deleteContactById(dataApi, contactId) {
 }
 
 // Example Usage:
-// deleteContactById(context.org.dataApi, '003xxxxxxxxxxxxxxx')
-//   .then(result => { /* ... */ })
-//   .catch(error => { /* ... */ });
-
+deleteContactById(dataApi, '003xxxxxxxxxxxxxxx')
+  .then(result => { /* ... */ })
+  .catch(error => { /* ... */ });
 ```
 
 ## Unit of Work (Transactions)
@@ -223,9 +229,9 @@ async function createAccountAndContactAtomic(dataApi, accountData, contactData) 
 const newAccount = { Name: 'Atomic Inc.', Industry: 'Manufacturing' };
 const newContact = { FirstName: 'John', LastName: 'Smith', Email: 'j.smith@atomic.inc' };
 
-// createAccountAndContactAtomic(context.org.dataApi, newAccount, newContact)
-//   .then(ids => { /* ... */ })
-//   .catch(error => { /* ... */ });
+createAccountAndContactAtomic(dataApi, newAccount, newContact)
+  .then(ids => { /* ... */ })
+  .catch(error => { /* ... */ });
 ```
 
 ### Unit of Work Steps:
@@ -238,9 +244,9 @@ const newContact = { FirstName: 'John', LastName: 'Smith', Email: 'j.smith@atomi
 
 ## Comparing with `jsforce`
 
-The key difference from your `jsforce` example is the **authentication and connection management**:
+The key differences from a `jsforce` implementation are:
 
 -   **`jsforce`**: Requires explicit login using `username`, `password`, and potentially a `securityToken`. You manage the connection lifecycle (`connect`, `disconnect`).
--   **`@heroku/salesforce-sdk-nodejs`**: Assumes an authenticated context (`Context`, `Org`) is provided by the environment. There's no explicit `login` or `connect` method exposed in the main interfaces. Record creation is done via the `dataApi` obtained from the context.
+-   **`@heroku/salesforce-sdk-nodejs`**: Provides a simpler, more streamlined approach using the `getConnection` method. Authentication is handled automatically, and you just need the org name.
 
-Therefore, you wouldn't directly replace the `jsforce.Connection` and `conn.login(...)` parts. Instead, your code would expect the `context` object to be passed in, and you'd use `context.org.dataApi` where you previously used the `jsforce` connection object (`this.conn`).
+The Heroku Salesforce SDK greatly simplifies the connection process compared to `jsforce`, making it easier to connect to your Salesforce org with much less code.
