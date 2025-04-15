@@ -1,10 +1,11 @@
-const jsforce = require('jsforce');
-const config = require('../config');
+const salesforcesdk = require('@heroku/salesforce-sdk-nodejs');
 const logger = require('../utils/logger');
 
 class SalesforceConnector {
   constructor() {
-    this.conn = null;
+    this.sdk = null;
+    this.org = null;
+    this.dataApi = null;
     this.isConnected = false;
   }
 
@@ -12,17 +13,17 @@ class SalesforceConnector {
     if (this.isConnected) return;
 
     try {
-      this.conn = new jsforce.Connection({
-        loginUrl: config.salesforce.loginUrl
-      });
-
-      await this.conn.login(
-        config.salesforce.username,
-        config.salesforce.password + config.salesforce.securityToken
-      );
-
+      // Initialize the SDK
+      this.sdk = salesforcesdk.init();
+      
+      // Connect to the Salesforce org using the environment variable
+      this.org = await this.sdk.addons.herokuIntegration.getConnection(process.env.SF_ORG);
+      
+      // Get the dataApi for CRUD operations
+      this.dataApi = this.org.dataApi;
+      
       this.isConnected = true;
-      logger.info('Connected to Salesforce');
+      logger.info('Connected to Salesforce using Heroku SDK');
     } catch (error) {
       logger.error(`Failed to connect to Salesforce: ${error.message}`);
       throw error;
@@ -35,14 +36,15 @@ class SalesforceConnector {
         await this.connect();
       }
 
-      const result = await this.conn.sobject('Integration__c').create(data);
+      const recordToCreate = {
+        type: 'Integration__c',
+        fields: data
+      };
+
+      const result = await this.dataApi.create(recordToCreate);
       
-      if (result.success) {
-        logger.info(`Created Integration record: ${result.id}`);
-        return result;
-      } else {
-        throw new Error(`Failed to create record: ${result.errors.join(', ')}`);
-      }
+      logger.info(`Created Integration record: ${result.id}`);
+      return result;
     } catch (error) {
       logger.error(`Error creating Integration record: ${error.message}`);
       throw error;
@@ -50,10 +52,13 @@ class SalesforceConnector {
   }
 
   async disconnect() {
-    if (this.conn) {
-      this.conn.logout();
+    // The Heroku SDK doesn't require explicit disconnection,
+    // but we'll reset our state for consistency
+    if (this.isConnected) {
+      this.org = null;
+      this.dataApi = null;
       this.isConnected = false;
-      logger.info('Disconnected from Salesforce');
+      logger.info('Reset Salesforce connection');
     }
   }
 }
